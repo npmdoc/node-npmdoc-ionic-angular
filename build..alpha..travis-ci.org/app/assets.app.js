@@ -5,7 +5,7 @@
 /*
 assets.app.js
 
-#### api documentation for [ionic-angular (v3.0.1)](https://github.com/driftyco/ionic#readme) [![npm package](https://img.shields.io/npm/v/npmdoc-ionic-angular.svg?style=flat-square)](https://www.npmjs.org/package/npmdoc-ionic-angular) [![travis-ci.org build-status](https://api.travis-ci.org/npmdoc/node-npmdoc-ionic-angular.svg)](https://travis-ci.org/npmdoc/node-npmdoc-ionic-angular)
+#### api documentation for ionic-angular (v3.0.1) [![npm package](https://img.shields.io/npm/v/npmdoc-ionic-angular.svg?style=flat-square)](https://www.npmjs.org/package/npmdoc-ionic-angular) [![travis-ci.org build-status](https://api.travis-ci.org/npmdoc/node-npmdoc-ionic-angular.svg)](https://travis-ci.org/npmdoc/node-npmdoc-ionic-angular)
 
 instruction
     1. save this script as assets.app.js
@@ -551,7 +551,7 @@ local.templateApidocHtml = '\
                 options.modulePathList || local.module.paths
             );
             local.objectSetDefault(options, {
-                env: {},
+                env: { npm_package_description: '' },
                 packageJson: JSON.parse(readExample('package.json')),
                 require: require
             });
@@ -10085,13 +10085,13 @@ the greatest app in the world!\n\
 \n\
 # this shell script will run the build for this package\n\
 \n\
-shBuildCiPost() {(set -e\n\
+shBuildCiAfter() {(set -e\n\
     shDeployGithub\n\
     # shDeployHeroku\n\
     shReadmeBuildLinkVerify\n\
 )}\n\
 \n\
-shBuildCiPre() {(set -e\n\
+shBuildCiBefore() {(set -e\n\
     shReadmeTest example.js\n\
     shReadmeTest example.sh\n\
     shNpmTestPublished\n\
@@ -12328,8 +12328,8 @@ return Utf8ArrayToStr(bff);
                 (/\nutility2-comment -->(?:\\n\\\n){4}[^`]*?^<!-- utility2-comment\\n\\\n/m),
                 // customize build-script
                 (/\n# internal build-script\n[\S\s]*?^- build_ci\.sh\n/m),
-                (/\nshBuildCiPost\(\) \{\(set -e\n[^`]*?\n\)\}\n/),
-                (/\nshBuildCiPre\(\) \{\(set -e\n[^`]*?\n\)\}\n/)
+                (/\nshBuildCiAfter\(\) \{\(set -e\n[^`]*?\n\)\}\n/),
+                (/\nshBuildCiBefore\(\) \{\(set -e\n[^`]*?\n\)\}\n/)
             ].forEach(function (rgx) {
                 // handle large string-replace
                 options.dataFrom.replace(rgx, function (match0) {
@@ -12439,13 +12439,13 @@ return Utf8ArrayToStr(bff);
             return tmp;
         };
 
-        local.dbTableTravisOrgCreate = function (options, onError) {
+        local.dbTableCustomOrgCreate = function (options, onError) {
         /*
-         * this function will create a persistent dbTableTravisOrg
+         * this function will create a persistent dbTableCustomOrg
          */
             options = local.objectSetDefault(options, { githubOrg: local.env.GITHUB_ORG });
             options = local.objectSetDefault(options, {
-                name: 'TravisOrg.' + options.githubOrg,
+                name: 'CustomOrg.' + options.githubOrg,
                 sizeLimit: 1000,
                 sortDefault: [{
                     fieldName: '_id'
@@ -12457,24 +12457,38 @@ return Utf8ArrayToStr(bff);
                     fieldName: 'active'
                 }]
             });
-            local.dbTableTravisOrg = local.db.dbTableCreateOne(options, onError);
-            return local.dbTableTravisOrg;
+            local.dbTableCustomOrg = local.db.dbTableCreateOne(options, onError);
+            return local.dbTableCustomOrg;
         };
 
-        local.dbTableTravisOrgUpdate = function (options, onError) {
+        local.dbTableCustomOrgCrudGetManyByQuery = function (options) {
         /*
-         * this function will update dbTableTravisOrg with active, public repos
+         * this function will query dbTableCustomOrg
+         */
+            options = local.objectSetDefault(options, { githubOrg: local.env.GITHUB_ORG });
+            options = local.objectSetDefault(options, {
+                query: { buildStartedAt: { $not: { $gt: new Date(Date.now() - (
+                    Number(options.olderThanLast) || 0
+                )).toISOString() } } }
+            }, 2);
+            console.error('dbTableCustomOrgCrudGetManyByQuery - ' + JSON.stringify(options));
+            return local.dbTableCustomOrg.crudGetManyByQuery(options);
+        };
+
+        local.dbTableCustomOrgUpdate = function (options, onError) {
+        /*
+         * this function will update dbTableCustomOrg with active, public repos
          */
             var count, dbRowList, self;
             options = local.objectSetDefault(options, { githubOrg: local.env.GITHUB_ORG });
             local.onNext(options, function (error, data) {
                 switch (options.modeNext) {
                 case 1:
-                    self = local.dbTableTravisOrg =
-                        local.dbTableTravisOrgCreate(options, options.onNext);
+                    self = local.dbTableCustomOrg =
+                        local.dbTableCustomOrgCreate(options, options.onNext);
                     break;
                 case 2:
-                    self = local.dbTableTravisOrg = data;
+                    self = local.dbTableCustomOrg = data;
                     data = {
                         headers: {
                             'Travis-API-Version': '3',
@@ -15651,20 +15665,22 @@ instruction\n\
                 });
             }, local.exit);
             return;
-        case 'dbTableTravisOrgCrudGetManyByQuery':
-            local.dbTableTravisOrgCreate(JSON.parse(process.argv[3]), function (error, data) {
+        case 'dbTableCustomOrgCrudGetManyByQuery':
+            local.dbTableCustomOrgCreate(JSON.parse(process.argv[3] || '{}'), function (error) {
                 // validate no error occurred
                 local.assert(!error, error);
-                console.log(data.crudGetManyByQuery(JSON.parse(process.argv[3]))
+                console.log(local.dbTableCustomOrgCrudGetManyByQuery(
+                    JSON.parse(process.argv[3] || '{}')
+                )
                     .map(function (element) {
                         return element._id;
                     })
                     .join('\n'));
             });
             return;
-        case 'dbTableTravisOrgUpdate':
-            local.dbTableTravisOrgUpdate(
-                JSON.parse(process.argv[3]),
+        case 'dbTableCustomOrgUpdate':
+            local.dbTableCustomOrgUpdate(
+                JSON.parse(process.argv[3] || '{}'),
                 local.onErrorThrow
             );
             return;
@@ -19991,7 +20007,7 @@ local.templateUiResponseAjax = '\
         global.utility2_rollup;
     local.local = local;
 /* jslint-ignore-begin */
-local._stateInit({"utility2":{"assetsDict":{"/assets.index.template.html":"<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>{{env.npm_package_name}} (v{{env.npm_package_version}})</title>\n<style>\n/*csslint\n    box-sizing: false,\n    universal-selector: false\n*/\n* {\n    box-sizing: border-box;\n}\nbody {\n    background: #dde;\n    font-family: Arial, Helvetica, sans-serif;\n    margin: 2rem;\n}\nbody > * {\n    margin-bottom: 1rem;\n}\n.utility2FooterDiv {\n    margin-top: 20px;\n    text-align: center;\n}\n</style>\n<style>\n/*csslint\n*/\ntextarea {\n    font-family: monospace;\n    height: 10rem;\n    width: 100%;\n}\ntextarea[readonly] {\n    background: #ddd;\n}\n</style>\n</head>\n<body>\n<!-- utility2-comment\n<div id=\"ajaxProgressDiv1\" style=\"background: #d00; height: 2px; left: 0; margin: 0; padding: 0; position: fixed; top: 0; transition: background 0.5s, width 1.5s; width: 25%;\"></div>\nutility2-comment -->\n<h1>\n<!-- utility2-comment\n    <a\n        {{#if env.npm_package_homepage}}\n        href=\"{{env.npm_package_homepage}}\"\n        {{/if env.npm_package_homepage}}\n        target=\"_blank\"\n    >\nutility2-comment -->\n        {{env.npm_package_name}} (v{{env.npm_package_version}})\n<!-- utility2-comment\n    </a>\nutility2-comment -->\n</h1>\n<h3>{{env.npm_package_description}}</h3>\n<!-- utility2-comment\n<h4><a download href=\"assets.app.js\">download standalone app</a></h4>\n<button class=\"onclick onreset\" id=\"testRunButton1\">run internal test</button><br>\n<div id=\"testReportDiv1\" style=\"display: none;\"></div>\nutility2-comment -->\n\n\n\n<label>stderr and stdout</label>\n<textarea class=\"resettable\" id=\"outputTextareaStdout1\" readonly></textarea>\n<!-- utility2-comment\n{{#if isRollup}}\n<script src=\"assets.app.js\"></script>\n{{#unless isRollup}}\nutility2-comment -->\n<script src=\"assets.utility2.rollup.js\"></script>\n<script src=\"jsonp.utility2._stateInit?callback=window.utility2._stateInit\"></script>\n<script src=\"assets.npmdoc_ionic_angular.rollup.js\"></script>\n<script src=\"assets.example.js\"></script>\n<script src=\"assets.test.js\"></script>\n<!-- utility2-comment\n{{/if isRollup}}\nutility2-comment -->\n<div class=\"utility2FooterDiv\">\n    [ this app was created with\n    <a href=\"https://github.com/kaizhu256/node-utility2\" target=\"_blank\">utility2</a>\n    ]\n</div>\n</body>\n</html>\n"},"env":{"NODE_ENV":"test","npm_package_description":"#### api documentation for [ionic-angular (v3.0.1)](https://github.com/driftyco/ionic#readme) [![npm package](https://img.shields.io/npm/v/npmdoc-ionic-angular.svg?style=flat-square)](https://www.npmjs.org/package/npmdoc-ionic-angular) [![travis-ci.org build-status](https://api.travis-ci.org/npmdoc/node-npmdoc-ionic-angular.svg)](https://travis-ci.org/npmdoc/node-npmdoc-ionic-angular)","npm_package_homepage":"https://github.com/npmdoc/node-npmdoc-ionic-angular","npm_package_name":"npmdoc-ionic-angular","npm_package_nameAlias":"npmdoc_ionic_angular","npm_package_version":"0.0.1"}}});
+local._stateInit({"utility2":{"assetsDict":{"/assets.index.template.html":"<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>{{env.npm_package_name}} (v{{env.npm_package_version}})</title>\n<style>\n/*csslint\n    box-sizing: false,\n    universal-selector: false\n*/\n* {\n    box-sizing: border-box;\n}\nbody {\n    background: #dde;\n    font-family: Arial, Helvetica, sans-serif;\n    margin: 2rem;\n}\nbody > * {\n    margin-bottom: 1rem;\n}\n.utility2FooterDiv {\n    margin-top: 20px;\n    text-align: center;\n}\n</style>\n<style>\n/*csslint\n*/\ntextarea {\n    font-family: monospace;\n    height: 10rem;\n    width: 100%;\n}\ntextarea[readonly] {\n    background: #ddd;\n}\n</style>\n</head>\n<body>\n<!-- utility2-comment\n<div id=\"ajaxProgressDiv1\" style=\"background: #d00; height: 2px; left: 0; margin: 0; padding: 0; position: fixed; top: 0; transition: background 0.5s, width 1.5s; width: 25%;\"></div>\nutility2-comment -->\n<h1>\n<!-- utility2-comment\n    <a\n        {{#if env.npm_package_homepage}}\n        href=\"{{env.npm_package_homepage}}\"\n        {{/if env.npm_package_homepage}}\n        target=\"_blank\"\n    >\nutility2-comment -->\n        {{env.npm_package_name}} (v{{env.npm_package_version}})\n<!-- utility2-comment\n    </a>\nutility2-comment -->\n</h1>\n<h3>{{env.npm_package_description}}</h3>\n<!-- utility2-comment\n<h4><a download href=\"assets.app.js\">download standalone app</a></h4>\n<button class=\"onclick onreset\" id=\"testRunButton1\">run internal test</button><br>\n<div id=\"testReportDiv1\" style=\"display: none;\"></div>\nutility2-comment -->\n\n\n\n<label>stderr and stdout</label>\n<textarea class=\"resettable\" id=\"outputTextareaStdout1\" readonly></textarea>\n<!-- utility2-comment\n{{#if isRollup}}\n<script src=\"assets.app.js\"></script>\n{{#unless isRollup}}\nutility2-comment -->\n<script src=\"assets.utility2.rollup.js\"></script>\n<script src=\"jsonp.utility2._stateInit?callback=window.utility2._stateInit\"></script>\n<script src=\"assets.npmdoc_ionic_angular.rollup.js\"></script>\n<script src=\"assets.example.js\"></script>\n<script src=\"assets.test.js\"></script>\n<!-- utility2-comment\n{{/if isRollup}}\nutility2-comment -->\n<div class=\"utility2FooterDiv\">\n    [ this app was created with\n    <a href=\"https://github.com/kaizhu256/node-utility2\" target=\"_blank\">utility2</a>\n    ]\n</div>\n</body>\n</html>\n"},"env":{"NODE_ENV":"test","npm_package_description":"#### api documentation for ionic-angular (v3.0.1) [![npm package](https://img.shields.io/npm/v/npmdoc-ionic-angular.svg?style=flat-square)](https://www.npmjs.org/package/npmdoc-ionic-angular) [![travis-ci.org build-status](https://api.travis-ci.org/npmdoc/node-npmdoc-ionic-angular.svg)](https://travis-ci.org/npmdoc/node-npmdoc-ionic-angular)","npm_package_homepage":"https://github.com/npmdoc/node-npmdoc-ionic-angular","npm_package_name":"npmdoc-ionic-angular","npm_package_nameAlias":"npmdoc_ionic_angular","npm_package_version":"0.0.1"}}});
 /* jslint-ignore-end */
 }());
 /* script-end local._stateInit */

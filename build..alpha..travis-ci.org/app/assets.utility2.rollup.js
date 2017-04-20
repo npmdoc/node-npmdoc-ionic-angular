@@ -532,7 +532,7 @@ local.templateApidocHtml = '\
                 options.modulePathList || local.module.paths
             );
             local.objectSetDefault(options, {
-                env: {},
+                env: { npm_package_description: '' },
                 packageJson: JSON.parse(readExample('package.json')),
                 require: require
             });
@@ -10066,13 +10066,13 @@ the greatest app in the world!\n\
 \n\
 # this shell script will run the build for this package\n\
 \n\
-shBuildCiPost() {(set -e\n\
+shBuildCiAfter() {(set -e\n\
     shDeployGithub\n\
     # shDeployHeroku\n\
     shReadmeBuildLinkVerify\n\
 )}\n\
 \n\
-shBuildCiPre() {(set -e\n\
+shBuildCiBefore() {(set -e\n\
     shReadmeTest example.js\n\
     shReadmeTest example.sh\n\
     shNpmTestPublished\n\
@@ -12309,8 +12309,8 @@ return Utf8ArrayToStr(bff);
                 (/\nutility2-comment -->(?:\\n\\\n){4}[^`]*?^<!-- utility2-comment\\n\\\n/m),
                 // customize build-script
                 (/\n# internal build-script\n[\S\s]*?^- build_ci\.sh\n/m),
-                (/\nshBuildCiPost\(\) \{\(set -e\n[^`]*?\n\)\}\n/),
-                (/\nshBuildCiPre\(\) \{\(set -e\n[^`]*?\n\)\}\n/)
+                (/\nshBuildCiAfter\(\) \{\(set -e\n[^`]*?\n\)\}\n/),
+                (/\nshBuildCiBefore\(\) \{\(set -e\n[^`]*?\n\)\}\n/)
             ].forEach(function (rgx) {
                 // handle large string-replace
                 options.dataFrom.replace(rgx, function (match0) {
@@ -12420,13 +12420,13 @@ return Utf8ArrayToStr(bff);
             return tmp;
         };
 
-        local.dbTableTravisOrgCreate = function (options, onError) {
+        local.dbTableCustomOrgCreate = function (options, onError) {
         /*
-         * this function will create a persistent dbTableTravisOrg
+         * this function will create a persistent dbTableCustomOrg
          */
             options = local.objectSetDefault(options, { githubOrg: local.env.GITHUB_ORG });
             options = local.objectSetDefault(options, {
-                name: 'TravisOrg.' + options.githubOrg,
+                name: 'CustomOrg.' + options.githubOrg,
                 sizeLimit: 1000,
                 sortDefault: [{
                     fieldName: '_id'
@@ -12438,24 +12438,38 @@ return Utf8ArrayToStr(bff);
                     fieldName: 'active'
                 }]
             });
-            local.dbTableTravisOrg = local.db.dbTableCreateOne(options, onError);
-            return local.dbTableTravisOrg;
+            local.dbTableCustomOrg = local.db.dbTableCreateOne(options, onError);
+            return local.dbTableCustomOrg;
         };
 
-        local.dbTableTravisOrgUpdate = function (options, onError) {
+        local.dbTableCustomOrgCrudGetManyByQuery = function (options) {
         /*
-         * this function will update dbTableTravisOrg with active, public repos
+         * this function will query dbTableCustomOrg
+         */
+            options = local.objectSetDefault(options, { githubOrg: local.env.GITHUB_ORG });
+            options = local.objectSetDefault(options, {
+                query: { buildStartedAt: { $not: { $gt: new Date(Date.now() - (
+                    Number(options.olderThanLast) || 0
+                )).toISOString() } } }
+            }, 2);
+            console.error('dbTableCustomOrgCrudGetManyByQuery - ' + JSON.stringify(options));
+            return local.dbTableCustomOrg.crudGetManyByQuery(options);
+        };
+
+        local.dbTableCustomOrgUpdate = function (options, onError) {
+        /*
+         * this function will update dbTableCustomOrg with active, public repos
          */
             var count, dbRowList, self;
             options = local.objectSetDefault(options, { githubOrg: local.env.GITHUB_ORG });
             local.onNext(options, function (error, data) {
                 switch (options.modeNext) {
                 case 1:
-                    self = local.dbTableTravisOrg =
-                        local.dbTableTravisOrgCreate(options, options.onNext);
+                    self = local.dbTableCustomOrg =
+                        local.dbTableCustomOrgCreate(options, options.onNext);
                     break;
                 case 2:
-                    self = local.dbTableTravisOrg = data;
+                    self = local.dbTableCustomOrg = data;
                     data = {
                         headers: {
                             'Travis-API-Version': '3',
@@ -15632,20 +15646,22 @@ instruction\n\
                 });
             }, local.exit);
             return;
-        case 'dbTableTravisOrgCrudGetManyByQuery':
-            local.dbTableTravisOrgCreate(JSON.parse(process.argv[3]), function (error, data) {
+        case 'dbTableCustomOrgCrudGetManyByQuery':
+            local.dbTableCustomOrgCreate(JSON.parse(process.argv[3] || '{}'), function (error) {
                 // validate no error occurred
                 local.assert(!error, error);
-                console.log(data.crudGetManyByQuery(JSON.parse(process.argv[3]))
+                console.log(local.dbTableCustomOrgCrudGetManyByQuery(
+                    JSON.parse(process.argv[3] || '{}')
+                )
                     .map(function (element) {
                         return element._id;
                     })
                     .join('\n'));
             });
             return;
-        case 'dbTableTravisOrgUpdate':
-            local.dbTableTravisOrgUpdate(
-                JSON.parse(process.argv[3]),
+        case 'dbTableCustomOrgUpdate':
+            local.dbTableCustomOrgUpdate(
+                JSON.parse(process.argv[3] || '{}'),
                 local.onErrorThrow
             );
             return;
